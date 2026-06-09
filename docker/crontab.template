@@ -1,0 +1,5 @@
+# Sync live/final results every 5 minutes
+*/5 * * * * curl -sf -H "Authorization: Bearer ${CRON_SECRET}" "http://127.0.0.1:${PORT}/api/cron/sync-results" > /dev/null
+
+# Email all users when pick windows open — daily at 08:00 UTC
+0 8 * * * curl -sf -H "Authorization: Bearer ${CRON_SECRET}" "http://127.0.0.1:${PORT}/api/cron/notify-picks-open" > /dev/null

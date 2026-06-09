@@ -1,0 +1,194 @@
+{
+  "MEX": {
+    "player": "Guillermo Ochoa",
+    "image": "/images/players/mex.jpg"
+  },
+  "RSA": {
+    "player": "Percy Tau",
+    "image": "/images/players/rsa.jpg"
+  },
+  "KOR": {
+    "player": "Son Heung-min",
+    "image": "/images/players/kor.jpg"
+  },
+  "CZE": {
+    "player": "Patrik Schick",
+    "image": "/images/players/cze.jpg"
+  },
+  "CAN": {
+    "player": "Alphonso Davies",
+    "image": "/images/players/can.jpg"
+  },
+  "BIH": {
+    "player": "Edin Džeko",
+    "image": "/images/players/bih.jpg"
+  },
+  "QAT": {
+    "player": "Almoez Ali",
+    "image": "/images/players/qat.jpg"
+  },
+  "SUI": {
+    "player": "Granit Xhaka",
+    "image": "/images/players/sui.jpg"
+  },
+  "BRA": {
+    "player": "Vinícius Júnior",
+    "image": "/images/players/bra.jpg"
+  },
+  "MAR": {
+    "player": "Achraf Hakimi",
+    "image": "/images/players/mar.jpg"
+  },
+  "HAI": {
+    "player": "Melchie Dumornay",
+    "image": "/images/players/hai.jpg"
+  },
+  "SCO": {
+    "player": "Andy Robertson",
+    "image": "/images/players/sco.jpg"
+  },
+  "USA": {
+    "player": "Christian Pulisic",
+    "image": "/images/players/usa.jpg"
+  },
+  "PAR": {
+    "player": "Miguel Almirón",
+    "image": "/images/players/par.jpg"
+  },
+  "AUS": {
+    "player": "Mathew Ryan",
+    "image": "/images/players/aus.jpg"
+  },
+  "TUR": {
+    "player": "Hakan Çalhanoğlu",
+    "image": "/images/players/tur.jpg"
+  },
+  "GER": {
+    "player": "Jamal Musiala",
+    "image": "/images/players/ger.jpg"
+  },
+  "CUW": {
+    "player": "Leandro Bacuna",
+    "image": "/images/players/cuw.jpg"
+  },
+  "CIV": {
+    "player": "Sébastien Haller",
+    "image": "/images/players/civ.jpg"
+  },
+  "ECU": {
+    "player": "Enner Valencia",
+    "image": "/images/players/ecu.jpg"
+  },
+  "NED": {
+    "player": "Virgil van Dijk",
+    "image": "/images/players/ned.jpg"
+  },
+  "JPN": {
+    "player": "Kaoru Mitoma",
+    "image": "/images/players/jpn.jpg"
+  },
+  "SWE": {
+    "player": "Victor Gyökeres",
+    "image": "/images/players/swe.jpg"
+  },
+  "TUN": {
+    "player": "Wahbi Khazri",
+    "image": "/images/players/tun.jpg"
+  },
+  "BEL": {
+    "player": "Kevin De Bruyne",
+    "image": "/images/players/bel.jpg"
+  },
+  "EGY": {
+    "player": "Mohamed Salah",
+    "image": "/images/players/egy.jpg"
+  },
+  "IRN": {
+    "player": "Mehdi Taremi",
+    "image": "/images/players/irn.jpg"
+  },
+  "NZL": {
+    "player": "Chris Wood",
+    "image": "/images/players/nzl.jpg"
+  },
+  "ESP": {
+    "player": "Pedri",
+    "image": "/images/players/esp.jpg"
+  },
+  "CPV": {
+    "player": "Ryan Mendes",
+    "image": "/images/players/cpv.jpg"
+  },
+  "KSA": {
+    "player": "Salem Al-Dawsari",
+    "image": "/images/players/ksa.jpg"
+  },
+  "URU": {
+    "player": "Luis Suárez",
+    "image": "/images/players/uru.jpg"
+  },
+  "FRA": {
+    "player": "Kylian Mbappé",
+    "image": "/images/players/fra.jpg"
+  },
+  "SEN": {
+    "player": "Sadio Mané",
+    "image": "/images/players/sen.jpg"
+  },
+  "IRQ": {
+    "player": "Mohanad Ali",
+    "image": "/images/players/irq.jpg"
+  },
+  "NOR": {
+    "player": "Erling Haaland",
+    "image": "/images/players/nor.jpg"
+  },
+  "ARG": {
+    "player": "Lionel Messi",
+    "image": "/images/players/arg.jpg"
+  },
+  "ALG": {
+    "player": "Riyad Mahrez",
+    "image": "/images/players/alg.jpg"
+  },
+  "AUT": {
+    "player": "Marcel Sabitzer",
+    "image": "/images/players/aut.jpg"
+  },
+  "JOR": {
+    "player": "Musa Al-Taamari",
+    "image": "/images/players/jor.jpg"
+  },
+  "POR": {
+    "player": "Cristiano Ronaldo",
+    "image": "/images/players/por.jpg"
+  },
+  "COD": {
+    "player": "Yoane Wissa",
+    "image": "/images/players/cod.jpg"
+  },
+  "UZB": {
+    "player": "Eldor Shomurodov",
+    "image": "/images/players/uzb.jpg"
+  },
+  "COL": {
+    "player": "Luis Díaz",
+    "image": "/images/players/col.jpg"
+  },
+  "ENG": {
+    "player": "Harry Kane",
+    "image": "/images/players/eng.jpg"
+  },
+  "CRO": {
+    "player": "Luka Modrić",
+    "image": "/images/players/cro.jpg"
+  },
+  "GHA": {
+    "player": "Mohammed Kudus",
+    "image": "/images/players/gha.jpg"
+  },
+  "PAN": {
+    "player": "Aníbal Godoy",
+    "image": "/images/players/pan.jpg"
+  }
+}

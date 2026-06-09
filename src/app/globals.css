@@ -1,26 +1,954 @@
 @import "tailwindcss";
+@import "@heroui/styles";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@font-face {
+  font-family: "FIFA 26";
+  src: url("/fonts/fifa-26.otf") format("opentype");
+  font-display: swap;
+  font-weight: 400;
+  font-style: normal;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-fifa: "FIFA 26", var(--font-geist-sans), sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.font-fifa {
+  font-family: var(--font-fifa);
+}
+
+/* FIFA World Cup 2026 brand palette */
+:root,
+.light,
+[data-theme="light"] {
+  --wc-purple: #5b2a86;
+  --wc-red: #e31937;
+  --wc-lime: #b8f032;
+  --wc-maroon: #5c1224;
+  --wc-green: #0d5c2e;
+  --wc-gold: #d4af37;
+  --wc-cream: #f3ead8;
+
+  --background: oklch(0.93 0.025 85);
+  --foreground: oklch(0.22 0.04 300);
+  --surface: oklch(0.96 0.018 85 / 0.88);
+  --surface-secondary: oklch(0.9 0.03 85 / 0.9);
+  --surface-tertiary: oklch(0.86 0.035 300 / 0.85);
+  --overlay: oklch(0.97 0.015 85);
+  --default: oklch(0.88 0.025 300);
+  --default-foreground: oklch(0.22 0.04 300);
+  --border: oklch(0.78 0.04 300 / 0.35);
+  --separator: oklch(0.8 0.03 300 / 0.3);
+  --muted: oklch(0.42 0.04 300);
+  --field-background: oklch(0.98 0.01 85 / 0.95);
+  --field-border: oklch(0.72 0.05 300 / 0.4);
+  --field-foreground: oklch(0.22 0.04 300);
+  --segment: oklch(0.9 0.025 85);
+  --accent: var(--wc-red);
+  --accent-foreground: oklch(0.99 0 0);
+  --success: var(--wc-green);
+  --success-foreground: oklch(0.98 0.01 140);
+  --danger: var(--wc-red);
+}
+
+.dark {
+  --background: oklch(0.16 0.045 300);
+  --foreground: oklch(0.96 0.01 85);
+  --surface: oklch(0.2 0.05 300 / 0.72);
+  --surface-secondary: oklch(0.24 0.055 300 / 0.78);
+  --surface-tertiary: oklch(0.28 0.06 300 / 0.82);
+  --overlay: oklch(0.22 0.05 300);
+  --default: oklch(0.26 0.05 300);
+  --default-foreground: oklch(0.96 0.01 85);
+  --border: oklch(0.45 0.06 300 / 0.35);
+  --separator: oklch(0.4 0.05 300 / 0.3);
+  --muted: oklch(0.72 0.03 85);
+  --field-background: oklch(0.22 0.045 300 / 0.9);
+  --field-border: oklch(0.45 0.06 300 / 0.45);
+  --field-foreground: oklch(0.96 0.01 85);
+  --segment: oklch(0.24 0.05 300);
+  --accent: var(--wc-lime);
+  --accent-foreground: oklch(0.18 0.04 140);
+  --success: var(--wc-lime);
+  --success-foreground: oklch(0.16 0.04 140);
 }
 
 body {
-  background: var(--background);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+.app-shell {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--color-background);
+}
+
+.app-shell::before,
+.app-shell::after {
+  content: "";
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app-shell::before {
+  top: -12rem;
+  left: -10rem;
+  width: 34rem;
+  height: 34rem;
+  background: color-mix(in oklab, var(--wc-purple) 55%, transparent);
+  opacity: 0.45;
+}
+
+.app-shell::after {
+  right: -8rem;
+  bottom: -10rem;
+  width: 30rem;
+  height: 30rem;
+  background: color-mix(in oklab, var(--wc-lime) 50%, transparent);
+  opacity: 0.3;
+}
+
+.dark .app-shell::before {
+  opacity: 0.55;
+}
+
+.dark .app-shell::after {
+  opacity: 0.22;
+}
+
+.app-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+.wc-curve-accent {
+  background:
+    radial-gradient(120% 80% at 100% 0%, color-mix(in oklab, var(--wc-red) 35%, transparent), transparent 55%),
+    radial-gradient(90% 70% at 0% 100%, color-mix(in oklab, var(--wc-green) 25%, transparent), transparent 50%);
+}
+
+.wc-page-header {
+  position: relative;
+}
+
+.wc-kicker {
+  font-size: 0.72rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--wc-red) 80%, var(--foreground));
+  font-weight: 700;
+}
+
+.wc-page-title {
+  margin-top: 0.35rem;
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+.wc-page-desc {
+  margin-top: 0.75rem;
+  max-width: 42rem;
+  color: var(--muted);
+}
+
+.wc-glass {
+  border: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent);
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 50px color-mix(in oklab, var(--wc-purple) 12%, transparent);
+}
+
+.wc-match-card {
+  overflow: hidden;
+  border-radius: 1.5rem;
+  border: 1px solid color-mix(in oklab, var(--foreground) 14%, transparent);
+  background: color-mix(in oklab, var(--surface) 90%, transparent);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 20px 45px color-mix(in oklab, var(--wc-purple) 15%, transparent);
+}
+
+.wc-match-header {
+  background:
+    linear-gradient(115deg, var(--wc-purple) 0%, var(--wc-red) 52%, var(--wc-green) 100%);
+  color: white;
+}
+
+.wc-venue-pill {
+  display: inline-flex;
+  margin-top: 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid rgb(255 255 255 / 0.25);
+  background: rgb(255 255 255 / 0.16);
+  padding: 0.25rem 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+}
+
+.wc-score-display {
+  font-family: var(--font-fifa);
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.wc-badge {
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.wc-badge-open {
+  background: color-mix(in oklab, var(--wc-lime) 85%, white);
+  color: var(--wc-green);
+}
+
+.wc-badge-saved {
+  background: color-mix(in oklab, var(--wc-purple) 20%, white);
+  color: var(--wc-purple);
+}
+
+.wc-badge-locked {
+  background: color-mix(in oklab, var(--wc-gold) 35%, white);
+  color: var(--wc-maroon);
+}
+
+.wc-badge-finished {
+  background: var(--wc-red);
+  color: white;
+}
+
+.dark .wc-badge-open {
+  background: color-mix(in oklab, var(--wc-lime) 75%, black);
+  color: oklch(0.12 0.04 140);
+}
+
+.dark .wc-badge-saved {
+  background: color-mix(in oklab, var(--wc-purple) 55%, black);
+  color: white;
+}
+
+.wc-btn {
+  border-radius: 9999px;
+  background: linear-gradient(135deg, var(--wc-red) 0%, var(--wc-maroon) 100%);
+  padding: 0.55rem 1.1rem;
+  font-size: 0.875rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: white;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.wc-btn:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.wc-btn:disabled {
+  opacity: 0.55;
+  transform: none;
+}
+
+.wc-btn-secondary {
+  border-radius: 9999px;
+  border: 1px solid color-mix(in oklab, var(--wc-purple) 35%, transparent);
+  background: color-mix(in oklab, var(--wc-purple) 12%, transparent);
+  padding: 0.55rem 1.1rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.wc-stat-card {
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklab, var(--foreground) 10%, transparent);
+  background: color-mix(in oklab, var(--surface) 92%, transparent);
+  padding: 0.85rem 1rem;
+  text-align: center;
+  backdrop-filter: blur(12px);
+}
+
+.wc-filter-active {
+  background: linear-gradient(135deg, var(--wc-purple), var(--wc-red));
+  color: white;
+}
+
+.wc-phase-section {
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent);
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.wc-phase-header {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.wc-phase-header:hover {
+  background: color-mix(in oklab, var(--wc-purple) 6%, transparent);
+}
+
+.wc-phase-title {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--foreground);
+}
+
+.wc-phase-meta {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.wc-phase-chevron {
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--wc-purple) 14%, transparent);
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--wc-purple);
+  transition: transform 0.2s ease;
+}
+
+.wc-phase-chevron-open {
+  transform: rotate(90deg);
+}
+
+.wc-phase-body {
+  padding: 0 1rem 1rem;
+}
+
+.wc-live-pulse {
+  animation: wc-live-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes wc-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+
+.wc-login-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  border: 1px solid color-mix(in oklab, var(--foreground) 10%, transparent);
+}
+
+.wc-table-head {
+  background: linear-gradient(90deg, color-mix(in oklab, var(--wc-purple) 18%, transparent), color-mix(in oklab, var(--wc-red) 12%, transparent));
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Knockout bracket tree */
+.bracket-container {
+  --bracket-row-height: 2.85rem;
+  --bracket-match-width: 10.5rem;
+}
+
+.bracket-locked-banner {
+  margin-bottom: 1rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklab, var(--wc-lime) 35%, transparent);
+  background: color-mix(in oklab, var(--wc-lime) 12%, var(--surface));
+  padding: 1rem 1.25rem;
+}
+
+.group-team-row-locked {
+  cursor: default;
+  opacity: 0.92;
+}
+
+.group-team-row-locked:hover {
+  background: inherit;
+}
+
+.bracket-scroll {
+  overflow-x: auto;
+  padding-bottom: 1rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.bracket-tree {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: max-content;
+  padding: 1rem 0.5rem;
+}
+
+.bracket-half {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  min-width: var(--bracket-match-width);
+}
+
+.bracket-round-label {
+  margin-bottom: 0.5rem;
+  text-align: center;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.bracket-round-grid {
+  display: grid;
+  flex: 1;
+  min-height: calc(var(--bracket-row-height) * 16);
+}
+
+.bracket-slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0.15rem 0;
+}
+
+.bracket-round-left .bracket-slot::after {
+  content: "";
+  position: absolute;
+  right: -0.4rem;
+  top: 50%;
+  width: 0.4rem;
+  height: 1px;
+  background: color-mix(in oklab, var(--wc-gold) 35%, transparent);
+}
+
+.bracket-round-right .bracket-slot::before {
+  content: "";
+  position: absolute;
+  left: -0.4rem;
+  top: 50%;
+  width: 0.4rem;
+  height: 1px;
+  background: color-mix(in oklab, var(--wc-gold) 35%, transparent);
+}
+
+.bracket-round-right .bracket-team {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.bracket-match {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.bracket-team {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent);
+  background: color-mix(in oklab, var(--surface) 85%, transparent);
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  cursor: pointer;
+}
+
+.bracket-team:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--wc-gold) 45%, transparent);
+  background: color-mix(in oklab, var(--wc-gold) 8%, var(--surface));
+}
+
+.bracket-team-selected {
+  border-color: color-mix(in oklab, var(--wc-gold) 65%, transparent);
+  background: color-mix(in oklab, var(--wc-gold) 22%, var(--surface));
+  color: var(--wc-gold);
+}
+
+.bracket-team-disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.bracket-team-flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1rem;
+  flex-shrink: 0;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.bracket-team-flag-lg {
+  width: 2rem;
+  height: 1.5rem;
+  font-size: 1.5rem;
+}
+
+.bracket-team-flag-placeholder {
+  border-radius: 0.15rem;
+  border: 1px solid color-mix(in oklab, var(--foreground) 18%, transparent);
+  background: color-mix(in oklab, var(--foreground) 6%, transparent);
+}
+
+.bracket-team-name {
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracket-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 11rem;
+  padding: 0 0.5rem;
+}
+
+.bracket-center-match {
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
+.bracket-center-match .bracket-team-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.bracket-champion-team {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.bracket-champion-name {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--wc-gold);
+}
+
+.bracket-champion {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+
+.bracket-trophy {
+  font-size: 2rem;
+  line-height: 1;
+  filter: grayscale(0.2);
+}
+
+.bracket-champion-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--wc-gold);
+}
+
+.bracket-champion-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 5rem;
+  min-width: 10rem;
+  border-radius: 0.75rem;
+  border: 2px solid color-mix(in oklab, var(--wc-gold) 55%, transparent);
+  background: color-mix(in oklab, var(--wc-gold) 12%, var(--surface));
+  padding: 1rem;
+}
+
+.bracket-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 1.5rem;
+  text-align: center;
+}
+
+@media (min-width: 1024px) {
+  .bracket-container {
+    --bracket-match-width: 11.5rem;
+  }
+
+  .bracket-tree {
+    gap: 0.75rem;
+  }
+
+  .bracket-half {
+    gap: 0.5rem;
+  }
+}
+
+/* Bracket wizard stepper */
+.bracket-stepper {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent);
+  padding-bottom: 0.75rem;
+}
+
+.bracket-step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: none;
+  background: transparent;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  color: var(--muted);
+  transition: color 0.15s ease;
+}
+
+.bracket-step:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.bracket-step-active {
+  color: var(--wc-gold);
+  box-shadow: inset 0 -2px 0 var(--wc-gold);
+}
+
+.bracket-step-complete .bracket-step-number {
+  background: color-mix(in oklab, var(--wc-lime) 75%, black);
+  color: oklch(0.12 0.04 140);
+}
+
+.bracket-step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--foreground) 10%, transparent);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.bracket-step-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* Group stage predictor */
+.group-predictor-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+@media (min-width: 768px) {
+  .group-predictor-header {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+}
+
+.group-predictor-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.group-predictor-desc {
+  margin-top: 0.35rem;
+  max-width: 36rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.group-predictor-progress {
+  min-width: 14rem;
+}
+
+.group-predictor-progress-label {
+  margin-bottom: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.group-predictor-progress-bar {
+  height: 0.35rem;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--foreground) 10%, transparent);
+}
+
+.group-predictor-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--wc-purple), var(--wc-gold));
+  transition: width 0.25s ease;
+}
+
+.group-predictor-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .group-predictor-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .group-predictor-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.group-card {
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent);
+  background: color-mix(in oklab, var(--surface) 90%, transparent);
+  padding: 0.85rem;
+  backdrop-filter: blur(12px);
+}
+
+.group-card-done {
+  border-color: color-mix(in oklab, var(--wc-lime) 35%, transparent);
+}
+
+.group-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.65rem;
+}
+
+.group-card-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--wc-gold);
+}
+
+.group-card-done-badge {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--wc-green);
+}
+
+.group-card-teams {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.group-team-row {
+  display: grid;
+  grid-template-columns: 1.6rem 1.4rem 1fr auto auto;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  border-radius: 0.55rem;
+  border: 1px solid color-mix(in oklab, var(--foreground) 10%, transparent);
+  background: color-mix(in oklab, var(--background) 55%, transparent);
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.group-team-row:hover {
+  border-color: color-mix(in oklab, var(--wc-gold) 40%, transparent);
+}
+
+.group-team-ranked {
+  border-color: color-mix(in oklab, var(--foreground) 16%, transparent);
+}
+
+.group-team-rank-1 {
+  background: color-mix(in oklab, var(--wc-gold) 14%, var(--surface));
+}
+
+.group-team-rank-2 {
+  background: color-mix(in oklab, var(--foreground) 6%, var(--surface));
+}
+
+.group-team-rank-3 {
+  background: color-mix(in oklab, var(--wc-green) 10%, var(--surface));
+}
+
+.group-team-rank-4 {
+  opacity: 0.72;
+}
+
+.group-team-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 9999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.group-team-rank-empty {
+  color: var(--muted);
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+.group-team-rank-badge-1 {
+  background: var(--wc-gold);
+  color: oklch(0.18 0.04 85);
+}
+
+.group-team-rank-badge-2 {
+  background: color-mix(in oklab, var(--foreground) 22%, transparent);
+  color: var(--foreground);
+}
+
+.group-team-rank-badge-3 {
+  background: color-mix(in oklab, var(--wc-green) 70%, black);
+  color: white;
+}
+
+.group-team-rank-badge-4 {
+  background: color-mix(in oklab, var(--foreground) 12%, transparent);
+  color: var(--muted);
+}
+
+.group-team-flag {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.group-team-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-team-badges {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.group-team-tag {
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.group-team-tag-host {
+  background: color-mix(in oklab, var(--wc-gold) 25%, transparent);
+  color: var(--wc-gold);
+}
+
+.group-team-tag-debut {
+  background: color-mix(in oklab, var(--wc-lime) 25%, transparent);
+  color: var(--wc-green);
+}
+
+.group-team-rank-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.group-card-hint {
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.group-predictor-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 2rem;
+}
+
+.group-predictor-generate {
+  min-width: 18rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.9rem;
 }

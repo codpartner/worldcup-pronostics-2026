@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.gitignore
+data
+.env.local
+.env
+*.md
+.cursor
+terminals
+fifa-26.otf.zip
+fifa-26.otf
+teams.json
+image.png
