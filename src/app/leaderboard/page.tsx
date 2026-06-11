@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
 import { PageHeader } from "@/components/PageHeader";
+
+const REFRESH_MS = 60_000;
 
 interface LeaderboardEntry {
   userId: number;
@@ -19,31 +21,34 @@ export default function LeaderboardPage() {
   const [currentUserId, setCurrentUserId] = useState<number>();
   const [loading, setLoading] = useState(true);
 
+  const loadLeaderboard = useCallback(async () => {
+    const res = await fetch("/api/leaderboard");
+    if (res.status === 401) {
+      router.push("/login");
+      return;
+    }
+    if (res.ok) {
+      const data = await res.json();
+      setEntries(data.leaderboard || []);
+    }
+    setLoading(false);
+  }, [router]);
+
   useEffect(() => {
-    async function load() {
-      const [leaderboardRes, meRes] = await Promise.all([
-        fetch("/api/leaderboard"),
-        fetch("/api/auth/me"),
-      ]);
-
-      if (leaderboardRes.status === 401) {
-        router.push("/login");
-        return;
-      }
-
-      const leaderboardData = await leaderboardRes.json();
-      setEntries(leaderboardData.leaderboard || []);
-
+    async function loadMe() {
+      const meRes = await fetch("/api/auth/me");
       if (meRes.ok) {
         const meData = await meRes.json();
         setCurrentUserId(meData.user?.id);
       }
-
-      setLoading(false);
     }
 
-    load();
-  }, [router]);
+    loadMe();
+    loadLeaderboard();
+
+    const interval = setInterval(loadLeaderboard, REFRESH_MS);
+    return () => clearInterval(interval);
+  }, [loadLeaderboard]);
 
   if (loading) {
     return (
@@ -57,7 +62,7 @@ export default function LeaderboardPage() {
     <div className="mx-auto max-w-6xl px-4 py-8">
       <PageHeader
         title="Leaderboard"
-        description="Rankings update automatically when admins enter match results."
+        description="Rankings refresh automatically as results come in."
       />
 
       <LeaderboardTable entries={entries} currentUserId={currentUserId} />

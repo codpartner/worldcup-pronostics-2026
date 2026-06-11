@@ -38,10 +38,13 @@ import type {
   LeaderboardEntry,
   LiveMatch,
   Match,
+  MatchDetails,
   MatchEmailStats,
+  MatchEvent,
   Prediction,
   PredictionHistoryEntry,
   ScoredPrediction,
+  TeamLineup,
   User,
 } from "./types";
 
@@ -171,6 +174,16 @@ function initSchema(database: Database.Database) {
       PRIMARY KEY (user_id, match_num),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS match_details (
+      match_id INTEGER PRIMARY KEY,
+      api_fixture_id INTEGER,
+      events_json TEXT,
+      lineups_json TEXT,
+      events_fetched_at TEXT,
+      lineups_fetched_at TEXT,
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+    );
   `);
 }
 
@@ -255,6 +268,15 @@ function migrateSchema(database: Database.Database) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (user_id, match_num),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS match_details (
+      match_id INTEGER PRIMARY KEY,
+      api_fixture_id INTEGER,
+      events_json TEXT,
+      lineups_json TEXT,
+      events_fetched_at TEXT,
+      lineups_fetched_at TEXT,
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
     );
   `);
 }
@@ -1061,6 +1083,82 @@ export function linkMatchToApiFixture(matchId: number, apiFixtureId: number) {
   getDb()
     .prepare("UPDATE matches SET api_fixture_id = ? WHERE id = ?")
     .run(apiFixtureId, matchId);
+}
+
+function parseJsonColumn<T>(value: unknown, fallback: T): T {
+  if (typeof value !== "string" || value.length === 0) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export function getMatchDetails(matchId: number): MatchDetails {
+  const row = getDb()
+    .prepare("SELECT * FROM match_details WHERE match_id = ?")
+    .get(matchId) as Record<string, unknown> | undefined;
+
+  if (!row) {
+    return {
+      matchId,
+      apiFixtureId: null,
+      events: [],
+      lineups: [],
+      eventsFetchedAt: null,
+      lineupsFetchedAt: null,
+    };
+  }
+
+  return {
+    matchId,
+    apiFixtureId: (row.api_fixture_id as number | null) ?? null,
+    events: parseJsonColumn<MatchEvent[]>(row.events_json, []),
+    lineups: parseJsonColumn<TeamLineup[]>(row.lineups_json, []),
+    eventsFetchedAt: (row.events_fetched_at as string | null) ?? null,
+    lineupsFetchedAt: (row.lineups_fetched_at as string | null) ?? null,
+  };
+}
+
+/** Ensure a match_details row exists so partial updates can use UPDATE. */
+function ensureMatchDetailsRow(matchId: number, apiFixtureId: number | null) {
+  getDb()
+    .prepare(
+      `INSERT INTO match_details (match_id, api_fixture_id)
+       VALUES (?, ?)
+       ON CONFLICT(match_id) DO UPDATE SET api_fixture_id = excluded.api_fixture_id`
+    )
+    .run(matchId, apiFixtureId);
+}
+
+export function saveMatchEvents(
+  matchId: number,
+  apiFixtureId: number | null,
+  events: MatchEvent[]
+): void {
+  ensureMatchDetailsRow(matchId, apiFixtureId);
+  getDb()
+    .prepare(
+      `UPDATE match_details
+       SET events_json = ?, events_fetched_at = datetime('now')
+       WHERE match_id = ?`
+    )
+    .run(JSON.stringify(events), matchId);
+}
+
+export function saveMatchLineups(
+  matchId: number,
+  apiFixtureId: number | null,
+  lineups: TeamLineup[]
+): void {
+  ensureMatchDetailsRow(matchId, apiFixtureId);
+  getDb()
+    .prepare(
+      `UPDATE match_details
+       SET lineups_json = ?, lineups_fetched_at = datetime('now')
+       WHERE match_id = ?`
+    )
+    .run(JSON.stringify(lineups), matchId);
 }
 
 export function getLeaderboard(): LeaderboardEntry[] {

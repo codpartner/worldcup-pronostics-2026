@@ -64,6 +64,8 @@ const PHASES = [
 
 type PhaseId = (typeof PHASES)[number]["id"];
 
+const REFRESH_MS = 60_000;
+
 function getDefaultExpandedPhases(matches: MatchWithPrediction[]): Set<PhaseId> {
   const open = new Set<PhaseId>();
   for (const phase of PHASES) {
@@ -94,26 +96,33 @@ export default function MatchesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadMatches = useCallback(async () => {
-    const response = await fetch("/api/matches");
-    if (response.status === 401) {
-      router.push("/login");
-      return;
-    }
-    if (!response.ok) {
-      setError("Could not load matches.");
+  const loadMatches = useCallback(
+    async (isInitial = false) => {
+      const response = await fetch("/api/matches");
+      if (response.status === 401) {
+        router.push("/login");
+        return;
+      }
+      if (!response.ok) {
+        if (isInitial) setError("Could not load matches.");
+        setLoading(false);
+        return;
+      }
+      const data = await response.json();
+      const nextMatches = data.matches as MatchWithPrediction[];
+      setMatches(nextMatches);
+      if (isInitial) {
+        setExpandedPhases(getDefaultExpandedPhases(nextMatches));
+      }
       setLoading(false);
-      return;
-    }
-    const data = await response.json();
-    const nextMatches = data.matches as MatchWithPrediction[];
-    setMatches(nextMatches);
-    setExpandedPhases(getDefaultExpandedPhases(nextMatches));
-    setLoading(false);
-  }, [router]);
+    },
+    [router]
+  );
 
   useEffect(() => {
-    loadMatches();
+    loadMatches(true);
+    const interval = setInterval(() => loadMatches(false), REFRESH_MS);
+    return () => clearInterval(interval);
   }, [loadMatches]);
 
   const matchesByPhase = useMemo(

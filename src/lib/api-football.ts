@@ -1,4 +1,19 @@
+import { parseKickoff } from "./scoring";
+import type {
+  LineupPlayer,
+  MatchEvent,
+  MatchEventType,
+  TeamLineup,
+} from "./types";
+
 const API_BASE = "https://v3.football.api-sports.io";
+
+/** Max gap between a local kickoff and an API fixture kickoff for the
+ * time-based knockout fallback to consider them the same match. */
+const KICKOFF_MATCH_TOLERANCE_MS = 75 * 60 * 1000;
+/** Minimum gap to the next-closest fixture; below this the match is
+ * considered ambiguous and skipped (admin enters it manually). */
+const KICKOFF_AMBIGUITY_MS = 30 * 60 * 1000;
 
 const TEAM_ALIASES: Record<string, string[]> = {
   usa: ["usa", "united states", "united states of america"],
@@ -95,12 +110,19 @@ function getApiKey(): string | null {
   return process.env.API_FOOTBALL_KEY?.trim() || null;
 }
 
-async function fetchFixtures(
+interface ApiCallResult<T> {
+  response: T[];
+  /** Remaining daily quota reported by `x-ratelimit-requests-remaining`. */
+  remaining: number | null;
+}
+
+async function fetchApi<T>(
   apiKey: string,
+  endpoint: string,
   params: Record<string, string>
-): Promise<ApiFixture[]> {
+): Promise<ApiCallResult<T>> {
   const query = new URLSearchParams(params);
-  const response = await fetch(`${API_BASE}/fixtures?${query.toString()}`, {
+  const response = await fetch(`${API_BASE}${endpoint}?${query.toString()}`, {
     headers: { "x-apisports-key": apiKey },
     cache: "no-store",
   });
@@ -109,8 +131,21 @@ async function fetchFixtures(
     throw new Error(`API-Football request failed (${response.status}).`);
   }
 
+  const remainingHeader = response.headers.get(
+    "x-ratelimit-requests-remaining"
+  );
+  const remaining = remainingHeader ? Number(remainingHeader) : null;
+
   const payload = await response.json();
-  return (payload.response || []) as ApiFixture[];
+  return { response: (payload.response || []) as T[], remaining };
+}
+
+async function fetchFixtures(
+  apiKey: string,
+  params: Record<string, string>
+): Promise<ApiFixture[]> {
+  const { response } = await fetchApi<ApiFixture>(apiKey, "/fixtures", params);
+  return response;
 }
 
 function findFixtureForMatch(
@@ -132,11 +167,53 @@ function findFixtureForMatch(
   );
 }
 
+/** Knockout slots are stored as placeholders (e.g. "2A", "W74", "L101",
+ * "3A/B/C/D/F") until the real teams are known. Team-name matching can never
+ * resolve these, so we fall back to kickoff-time matching for them. */
+function looksLikePlaceholder(name: string): boolean {
+  const trimmed = name.trim();
+  return (
+    /^[1-3][A-L](\/[A-L])*$/i.test(trimmed) ||
+    /^W\d+$/i.test(trimmed) ||
+    /^L\d+$/i.test(trimmed)
+  );
+}
+
+function isKnockoutPlaceholderMatch(team1: string, team2: string): boolean {
+  return looksLikePlaceholder(team1) || looksLikePlaceholder(team2);
+}
+
+/** Find the single fixture whose kickoff is closest to the local kickoff,
+ * within tolerance and unambiguously closer than any other candidate. */
+function findFixtureByKickoff(
+  fixtures: ApiFixture[],
+  localKickoffMs: number,
+  usedFixtureIds: Set<number>
+): ApiFixture | undefined {
+  const candidates = fixtures
+    .filter((entry) => !usedFixtureIds.has(entry.fixture.id))
+    .map((entry) => ({
+      entry,
+      diff: Math.abs(new Date(entry.fixture.date).getTime() - localKickoffMs),
+    }))
+    .filter((candidate) => candidate.diff <= KICKOFF_MATCH_TOLERANCE_MS)
+    .sort((a, b) => a.diff - b.diff);
+
+  if (candidates.length === 0) return undefined;
+  if (
+    candidates.length > 1 &&
+    candidates[1].diff - candidates[0].diff < KICKOFF_AMBIGUITY_MS
+  ) {
+    return undefined;
+  }
+
+  return candidates[0].entry;
+}
+
 function mapFixtureToUpdate(
   fixture: ApiFixture,
-  localTeam1: string
+  homeIsTeam1: boolean
 ): LiveFixtureUpdate | null {
-  const homeIsTeam1 = teamsMatch(localTeam1, fixture.teams.home.name);
   const homeGoals = fixture.goals.home;
   const awayGoals = fixture.goals.away;
 
@@ -166,15 +243,18 @@ export async function fetchLiveFixtures(): Promise<ApiFixture[]> {
   });
 }
 
+interface SyncLocalMatch {
+  id: number;
+  date: string;
+  time: string;
+  team1: string;
+  team2: string;
+  score1: number | null;
+  apiFixtureId: number | null;
+}
+
 export async function syncLiveScoresFromApiFootball(
-  localMatches: {
-    id: number;
-    date: string;
-    team1: string;
-    team2: string;
-    score1: number | null;
-    apiFixtureId: number | null;
-  }[],
+  localMatches: SyncLocalMatch[],
   applyLive: (matchId: number, update: LiveFixtureUpdate) => void,
   applyResult: (
     matchId: number,
@@ -227,6 +307,14 @@ export async function syncLiveScoresFromApiFootball(
     }
   }
 
+  const usedFixtureIds = new Set<number>();
+  const resolved = new Map<
+    number,
+    { fixture: ApiFixture; homeIsTeam1: boolean }
+  >();
+  const unresolved: SyncLocalMatch[] = [];
+
+  // Pass 1: match by linked fixture id, then by team names.
   for (const localMatch of pending) {
     const dayFixtures = fixturesByDate.get(localMatch.date) ?? [];
     const fixture =
@@ -242,13 +330,47 @@ export async function syncLiveScoresFromApiFootball(
       findFixtureForMatch(dayFixtures, localMatch.team1, localMatch.team2);
 
     if (!fixture) {
+      unresolved.push(localMatch);
+      continue;
+    }
+
+    usedFixtureIds.add(fixture.fixture.id);
+    resolved.set(localMatch.id, {
+      fixture,
+      homeIsTeam1: teamsMatch(localMatch.team1, fixture.teams.home.name),
+    });
+  }
+
+  // Pass 2: knockout placeholders can't be name-matched, so fall back to
+  // kickoff-time matching against that day's fixtures.
+  for (const localMatch of unresolved) {
+    if (!isKnockoutPlaceholderMatch(localMatch.team1, localMatch.team2)) {
       result.skipped += 1;
       continue;
     }
 
-    linkFixture(localMatch.id, fixture.fixture.id);
+    const dayFixtures = fixturesByDate.get(localMatch.date) ?? [];
+    const kickoffMs = parseKickoff(localMatch.date, localMatch.time).getTime();
+    const fixture = findFixtureByKickoff(dayFixtures, kickoffMs, usedFixtureIds);
 
-    const update = mapFixtureToUpdate(fixture, localMatch.team1);
+    if (!fixture) {
+      result.skipped += 1;
+      continue;
+    }
+
+    usedFixtureIds.add(fixture.fixture.id);
+    // The official schedule lists the home team first, matching the API's
+    // home/away orientation, so team1 maps to the fixture's home side.
+    resolved.set(localMatch.id, { fixture, homeIsTeam1: true });
+  }
+
+  for (const localMatch of pending) {
+    const match = resolved.get(localMatch.id);
+    if (!match) continue;
+
+    linkFixture(localMatch.id, match.fixture.fixture.id);
+
+    const update = mapFixtureToUpdate(match.fixture, match.homeIsTeam1);
     if (!update) {
       result.skipped += 1;
       continue;
@@ -277,99 +399,156 @@ export async function syncLiveScoresFromApiFootball(
   return result;
 }
 
-export async function syncResultsFromApiFootball(
-  localMatches: {
-    id: number;
-    date: string;
-    team1: string;
-    team2: string;
-    score1: number | null;
-    score2: number | null;
-    apiFixtureId: number | null;
-  }[],
-  applyResult: (
-    matchId: number,
-    score1: number,
-    score2: number,
-    apiFixtureId: number
-  ) => void,
-  linkFixture: (matchId: number, apiFixtureId: number) => void
-): Promise<SyncResult> {
+function sideForTeamName(
+  apiName: string,
+  team1: string,
+  team2: string
+): 1 | 2 | null {
+  if (teamsMatch(team1, apiName)) return 1;
+  if (teamsMatch(team2, apiName)) return 2;
+  return null;
+}
+
+interface RawLineupPlayer {
+  player: {
+    id: number | null;
+    name: string | null;
+    number: number | null;
+    pos: string | null;
+    grid: string | null;
+  };
+}
+
+interface RawLineup {
+  team: { id: number; name: string };
+  formation: string | null;
+  coach: { id: number | null; name: string | null } | null;
+  startXI: RawLineupPlayer[];
+  substitutes: RawLineupPlayer[];
+}
+
+interface RawEvent {
+  time: { elapsed: number | null; extra: number | null };
+  team: { id: number; name: string };
+  player: { id: number | null; name: string | null };
+  assist: { id: number | null; name: string | null };
+  type: string;
+  detail: string;
+}
+
+function mapLineupPlayer(entry: RawLineupPlayer): LineupPlayer {
+  return {
+    id: entry.player.id ?? null,
+    name: entry.player.name ?? "—",
+    number: entry.player.number ?? null,
+    pos: entry.player.pos ?? null,
+    grid: entry.player.grid ?? null,
+  };
+}
+
+interface FixtureDetailFetch {
+  remaining: number | null;
+}
+
+export interface FixtureLineupsFetch extends FixtureDetailFetch {
+  lineups: TeamLineup[];
+  /** Maps API team id to local side, derived from the lineup order. */
+  sideByTeamId: Map<number, 1 | 2>;
+}
+
+export async function fetchFixtureLineups(
+  fixtureId: number,
+  team1: string,
+  team2: string
+): Promise<FixtureLineupsFetch> {
   const apiKey = getApiKey();
   if (!apiKey) {
-    throw new Error(
-      "API_FOOTBALL_KEY is not configured. Get a free key at api-football.com."
-    );
+    throw new Error("API_FOOTBALL_KEY is not configured.");
   }
 
-  const result: SyncResult = { updated: 0, skipped: 0, errors: [] };
-  const pending = localMatches.filter((match) => match.score1 === null);
+  const { response, remaining } = await fetchApi<RawLineup>(
+    apiKey,
+    "/fixtures/lineups",
+    { fixture: String(fixtureId) }
+  );
 
-  if (pending.length === 0) {
-    return result;
+  const sideByTeamId = new Map<number, 1 | 2>();
+  const lineups: TeamLineup[] = response.map((raw, index) => {
+    const matched = sideForTeamName(raw.team.name, team1, team2);
+    // The API lists the home team first; use that as the fallback when team
+    // names can't be matched (e.g. transliteration differences).
+    const side: 1 | 2 = matched ?? (index === 0 ? 1 : 2);
+    sideByTeamId.set(raw.team.id, side);
+
+    return {
+      side,
+      teamName: raw.team.name,
+      formation: raw.formation ?? null,
+      coach: raw.coach?.name ?? null,
+      startXI: (raw.startXI || []).map(mapLineupPlayer),
+      substitutes: (raw.substitutes || []).map(mapLineupPlayer),
+    };
+  });
+
+  lineups.sort((a, b) => a.side - b.side);
+  return { lineups, sideByTeamId, remaining };
+}
+
+function mapEventType(rawType: string): MatchEventType {
+  const type = rawType.toLowerCase();
+  if (type === "goal") return "goal";
+  if (type === "card") return "card";
+  if (type === "subst") return "subst";
+  if (type === "var") return "var";
+  return "other";
+}
+
+export interface FixtureEventsFetch extends FixtureDetailFetch {
+  events: MatchEvent[];
+}
+
+export async function fetchFixtureEvents(
+  fixtureId: number,
+  team1: string,
+  team2: string,
+  sideByTeamId?: Map<number, 1 | 2>
+): Promise<FixtureEventsFetch> {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw new Error("API_FOOTBALL_KEY is not configured.");
   }
 
-  const dates = [...new Set(pending.map((match) => match.date))];
+  const { response, remaining } = await fetchApi<RawEvent>(
+    apiKey,
+    "/fixtures/events",
+    { fixture: String(fixtureId) }
+  );
 
-  for (const date of dates) {
-    let fixtures: ApiFixture[] = [];
+  const events: MatchEvent[] = response.map((raw) => {
+    const side: 1 | 2 =
+      sideByTeamId?.get(raw.team.id) ??
+      sideForTeamName(raw.team.name, team1, team2) ??
+      1;
 
-    try {
-      fixtures = await fetchFixtures(apiKey, {
-        league: "1",
-        season: "2026",
-        date,
-      });
-    } catch (error) {
-      result.errors.push(
-        error instanceof Error ? error.message : `Failed to fetch ${date}.`
-      );
-      continue;
-    }
+    return {
+      side,
+      teamName: raw.team.name,
+      elapsed: raw.time.elapsed ?? 0,
+      extra: raw.time.extra ?? null,
+      type: mapEventType(raw.type),
+      detail: raw.detail,
+      player: raw.player?.name ?? null,
+      assist: raw.assist?.name ?? null,
+    };
+  });
 
-    const dayMatches = pending.filter((match) => match.date === date);
+  events.sort((a, b) => {
+    const aTime = a.elapsed + (a.extra ?? 0);
+    const bTime = b.elapsed + (b.extra ?? 0);
+    return aTime - bTime;
+  });
 
-    for (const localMatch of dayMatches) {
-      const fixture = findFixtureForMatch(
-        fixtures,
-        localMatch.team1,
-        localMatch.team2
-      );
-
-      if (!fixture) {
-        result.skipped += 1;
-        continue;
-      }
-
-      linkFixture(localMatch.id, fixture.fixture.id);
-
-      if (!FINISHED_STATUSES.has(fixture.fixture.status.short)) {
-        result.skipped += 1;
-        continue;
-      }
-
-      if (fixture.goals.home === null || fixture.goals.away === null) {
-        result.skipped += 1;
-        continue;
-      }
-
-      const update = mapFixtureToUpdate(fixture, localMatch.team1);
-      if (!update) {
-        result.skipped += 1;
-        continue;
-      }
-
-      applyResult(
-        localMatch.id,
-        update.homeGoals,
-        update.awayGoals,
-        update.apiFixtureId
-      );
-      result.updated += 1;
-    }
-  }
-
-  return result;
+  return { events, remaining };
 }
 
 export function isApiFootballConfigured(): boolean {

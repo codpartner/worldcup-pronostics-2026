@@ -145,3 +145,44 @@ export interface MatchEmailStats {
   emailsSent: number;
   pendingEmails: number;
 }
+
+export type MatchEventType = "goal" | "card" | "subst" | "var" | "other";
+
+export interface MatchEvent {
+  /** Side the event belongs to: 1 = team1 (home), 2 = team2 (away). */
+  side: 1 | 2;
+  teamName: string;
+  elapsed: number;
+  extra: number | null;
+  type: MatchEventType;
+  detail: string;
+  player: string | null;
+  assist: string | null;
+}
+
+export interface LineupPlayer {
+  id: number | null;
+  name: string;
+  number: number | null;
+  pos: string | null;
+  /** API-Football grid position "row:col" (null for substitutes). */
+  grid: string | null;
+}
+
+export interface TeamLineup {
+  side: 1 | 2;
+  teamName: string;
+  formation: string | null;
+  coach: string | null;
+  startXI: LineupPlayer[];
+  substitutes: LineupPlayer[];
+}
+
+export interface MatchDetails {
+  matchId: number;
+  apiFixtureId: number | null;
+  events: MatchEvent[];
+  lineups: TeamLineup[];
+  eventsFetchedAt: string | null;
+  lineupsFetchedAt: string | null;
+}

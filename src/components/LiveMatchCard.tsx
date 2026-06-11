@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { MatchDetailsPanel } from "@/components/MatchDetailsPanel";
 import { MatchHeroBanner } from "@/components/MatchHero";
 import { TeamDisplay } from "@/components/TeamDisplay";
 import type { TeamHero } from "@/lib/team-heroes";
@@ -48,6 +50,7 @@ function statusLabel(status: string | null, elapsed: number | null) {
 }
 
 export function LiveMatchCard({ match, heroes }: LiveMatchCardProps) {
+  const [showDetails, setShowDetails] = useState(false);
   const hasScore =
     match.displayScore1 !== null && match.displayScore2 !== null;
   const finished = match.score1 !== null && match.score2 !== null;
@@ -96,7 +99,21 @@ export function LiveMatchCard({ match, heroes }: LiveMatchCardProps) {
           </div>
           <TeamDisplay name={match.team2} variant="compact" align="center" />
         </div>
+
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={() => setShowDetails((value) => !value)}
+            aria-expanded={showDetails}
+            className="text-sm font-medium text-muted transition hover:text-foreground"
+          >
+            {showDetails ? "Hide details ▲" : "Match details ▼"}
+          </button>
+        </div>
       </div>
+
+      {showDetails && (
+        <MatchDetailsPanel matchId={match.id} isLive={match.isLive} />
+      )}
     </article>
   );
 }
