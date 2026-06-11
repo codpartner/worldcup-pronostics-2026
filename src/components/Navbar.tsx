@@ -24,6 +24,7 @@ export function Navbar({ user }: NavbarProps) {
 
   if (user?.isAdmin) {
     links.push({ href: "/admin", label: "Admin" });
+    links.push({ href: "/admin/users", label: "Users" });
     links.push({ href: "/admin/picks", label: "Pick history" });
   }
 
