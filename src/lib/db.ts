@@ -19,6 +19,7 @@ import {
 import {
   formatPickWindowDate,
   getPicksCloseAt,
+  getPicksLockHoursBefore,
   getPicksOpenAt,
   getPicksOpenDaysBefore,
   getPickWindowStatus,
@@ -31,6 +32,9 @@ import { LIVE_STATUSES } from "./api-football";
 import { isValidBracketMatchNum } from "./bracket-picks";
 import type {
   ActivityEntry,
+  AdminUserDetail,
+  AdminUserPick,
+  AdminUserSummary,
   BracketPick,
   BracketSubmission,
   GroupRankingRecord,
@@ -446,13 +450,13 @@ function mapMatch(row: Record<string, unknown>): Match {
   const knockout = isKnockoutMatch({ group, num, round });
 
   const picksOpenAt = getPicksOpenAt(date);
-  const picksCloseAt = getPicksCloseAt(date);
+  const picksCloseAt = getPicksCloseAt(date, time);
   const pickWindowStatus = knockout
     ? hasResult
       ? "closed"
       : "open"
-    : getPickWindowStatus(date);
-  const picksOpen = knockout ? !hasResult : isPicksOpen(date);
+    : getPickWindowStatus(date, time);
+  const picksOpen = knockout ? !hasResult : isPicksOpen(date, time);
 
   return {
     id: row.id as number,
@@ -952,7 +956,9 @@ export function upsertPrediction(
       );
     }
     if (match.pickWindowStatus === "closed") {
-      throw new Error("Picks are closed for this match (match day or later).");
+      throw new Error(
+        `Picks are closed for this match (locked ${getPicksLockHoursBefore()} hour(s) before kickoff).`
+      );
     }
   }
 
@@ -1194,6 +1200,193 @@ export function getAllUsers(): User[] {
     .all() as Record<string, unknown>[];
 
   return rows.map(mapUser);
+}
+
+export function getAdminUserSummaries(): AdminUserSummary[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT
+         u.id,
+         u.name,
+         u.email,
+         u.is_admin,
+         u.created_at,
+         COUNT(p.id) as predictions_count,
+         COALESCE(SUM(p.points), 0) as total_points,
+         (SELECT COUNT(*) FROM group_rankings gr WHERE gr.user_id = u.id) as has_rankings,
+         (SELECT COUNT(*) FROM bracket_submissions bs WHERE bs.user_id = u.id) as has_bracket
+       FROM users u
+       LEFT JOIN predictions p ON p.user_id = u.id
+       GROUP BY u.id
+       ORDER BY u.name ASC`
+    )
+    .all() as Record<string, unknown>[];
+
+  return rows.map((row) => ({
+    id: row.id as number,
+    name: row.name as string,
+    email: row.email as string,
+    isAdmin: Boolean(row.is_admin),
+    createdAt: row.created_at as string,
+    predictionsCount: row.predictions_count as number,
+    totalPoints: row.total_points as number,
+    groupRankingsSet: Number(row.has_rankings) > 0,
+    bracketSubmitted: Number(row.has_bracket) > 0,
+  }));
+}
+
+export function getUserPicksForAdmin(userId: number): AdminUserDetail | null {
+  const user = getUserById(userId);
+  if (!user) return null;
+
+  const rows = getDb()
+    .prepare(
+      `SELECT
+         p.match_id,
+         p.pick,
+         p.score1,
+         p.score2,
+         p.points,
+         p.updated_at,
+         m.round,
+         m.num,
+         m.group_name,
+         m.date,
+         m.time,
+         m.team1,
+         m.team2,
+         m.score1 as result1,
+         m.score2 as result2
+       FROM predictions p
+       JOIN matches m ON m.id = p.match_id
+       WHERE p.user_id = ?
+       ORDER BY m.date ASC, m.time ASC, m.num ASC`
+    )
+    .all(userId) as Record<string, unknown>[];
+
+  const picks: AdminUserPick[] = rows.map((row) => {
+    const date = row.date as string;
+    const time = row.time as string;
+    const num = (row.num as number | null) ?? null;
+    const group = (row.group_name as string | null) ?? null;
+    const round = row.round as string;
+    const hasResult = row.result1 !== null && row.result2 !== null;
+    const knockout = isKnockoutMatch({ group, num, round });
+    return {
+      matchId: row.match_id as number,
+      round,
+      num,
+      group,
+      date,
+      time,
+      team1: row.team1 as string,
+      team2: row.team2 as string,
+      pick: readPickFromRow({
+        pick: row.pick as string | null,
+        score1: row.score1 as number | null,
+        score2: row.score2 as number | null,
+      }),
+      points: row.points as number | null,
+      hasResult,
+      locked: knockout ? hasResult : isMatchLocked(date, time),
+      updatedAt: row.updated_at as string,
+    };
+  });
+
+  const bracket = getBracketSubmission(userId);
+  const totalPoints = picks.reduce((sum, pick) => sum + (pick.points ?? 0), 0);
+
+  return {
+    user,
+    picks,
+    groupRankingsSet: getGroupRankings(userId) !== null,
+    bracketSubmitted: bracket !== null,
+    bracketSubmittedAt: bracket?.submittedAt ?? null,
+    bracketPicksCount: getBracketPicksForUser(userId).length,
+    totalPoints,
+  };
+}
+
+export function setUserAdmin(userId: number, isAdmin: boolean): User {
+  const user = getUserById(userId);
+  if (!user) throw new Error("User not found.");
+
+  getDb()
+    .prepare("UPDATE users SET is_admin = ? WHERE id = ?")
+    .run(isAdmin ? 1 : 0, userId);
+
+  return { ...user, isAdmin };
+}
+
+export function updateUserProfile(
+  userId: number,
+  name: string,
+  email: string
+): User {
+  const user = getUserById(userId);
+  if (!user) throw new Error("User not found.");
+
+  const cleanName = name.trim();
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanName) throw new Error("Name is required.");
+  if (!cleanEmail) throw new Error("Email is required.");
+
+  const existing = getDb()
+    .prepare("SELECT id FROM users WHERE email = ? AND id != ?")
+    .get(cleanEmail, userId) as { id: number } | undefined;
+  if (existing) {
+    throw new Error("Another account already uses that email.");
+  }
+
+  getDb()
+    .prepare("UPDATE users SET name = ?, email = ? WHERE id = ?")
+    .run(cleanName, cleanEmail, userId);
+
+  return { ...user, name: cleanName, email: cleanEmail };
+}
+
+function removeBracketPdf(userId: number): void {
+  const pdfPath = path.join(BRACKET_PDF_DIR, `${userId}.pdf`);
+  try {
+    fs.rmSync(pdfPath, { force: true });
+  } catch {
+    // ignore missing file
+  }
+}
+
+export function deleteUserAccount(userId: number): void {
+  const user = getUserById(userId);
+  if (!user) throw new Error("User not found.");
+
+  // Foreign keys cascade to predictions, history, rankings, bracket, etc.
+  getDb().prepare("DELETE FROM users WHERE id = ?").run(userId);
+  removeBracketPdf(userId);
+}
+
+export function resetUserData(userId: number): void {
+  const user = getUserById(userId);
+  if (!user) throw new Error("User not found.");
+
+  const database = getDb();
+  const wipe = database.transaction((id: number) => {
+    database.prepare("DELETE FROM predictions WHERE user_id = ?").run(id);
+    database.prepare("DELETE FROM prediction_history WHERE user_id = ?").run(id);
+    database.prepare("DELETE FROM group_rankings WHERE user_id = ?").run(id);
+    database.prepare("DELETE FROM bracket_picks WHERE user_id = ?").run(id);
+    database.prepare("DELETE FROM bracket_submissions WHERE user_id = ?").run(id);
+  });
+
+  wipe(userId);
+  removeBracketPdf(userId);
+}
+
+export function resetUserMatchPick(userId: number, matchId: number): void {
+  const user = getUserById(userId);
+  if (!user) throw new Error("User not found.");
+
+  getDb()
+    .prepare("DELETE FROM predictions WHERE user_id = ? AND match_id = ?")
+    .run(userId, matchId);
 }
 
 export function getPredictionHistoryForAdmin(): PredictionHistoryEntry[] {
@@ -1448,7 +1641,7 @@ export async function notifyPickWindowOpened(
 
   const users = getAllUsers();
   const picksUrl = `${getAppBaseUrl()}/matches`;
-  const closesOn = formatPickWindowDate(getPicksCloseAt(match.date));
+  const closesOn = formatPickWindowDate(getPicksCloseAt(match.date, match.time));
 
   for (const user of users) {
     try {

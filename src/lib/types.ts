@@ -64,6 +64,44 @@ export interface PredictionHistoryEntry {
   recordedAt: string;
 }
 
+export interface AdminUserSummary {
+  id: number;
+  name: string;
+  email: string;
+  isAdmin: boolean;
+  createdAt: string;
+  predictionsCount: number;
+  totalPoints: number;
+  groupRankingsSet: boolean;
+  bracketSubmitted: boolean;
+}
+
+export interface AdminUserPick {
+  matchId: number;
+  round: string;
+  num: number | null;
+  group: string | null;
+  date: string;
+  time: string;
+  team1: string;
+  team2: string;
+  pick: MatchPick;
+  points: number | null;
+  hasResult: boolean;
+  locked: boolean;
+  updatedAt: string;
+}
+
+export interface AdminUserDetail {
+  user: User;
+  picks: AdminUserPick[];
+  groupRankingsSet: boolean;
+  bracketSubmitted: boolean;
+  bracketSubmittedAt: string | null;
+  bracketPicksCount: number;
+  totalPoints: number;
+}
+
 export interface ActivityEntry {
   maskedName: string;
   matchId: number;

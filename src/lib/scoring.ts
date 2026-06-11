@@ -12,6 +12,11 @@ export function getPicksOpenDaysBefore(): number {
   return Number.isFinite(configured) && configured > 0 ? configured : 4;
 }
 
+export function getPicksLockHoursBefore(): number {
+  const configured = Number(process.env.PICKS_LOCK_HOURS_BEFORE || 1);
+  return Number.isFinite(configured) && configured > 0 ? configured : 1;
+}
+
 export function parseKickoff(date: string, time: string): Date {
   const match = time.match(/^(\d{1,2}):(\d{2})\s*UTC([+-]\d+)/);
   if (!match) {
@@ -34,32 +39,38 @@ export function getPicksOpenAt(date: string): Date {
   return opens;
 }
 
-export function getPicksCloseAt(date: string): Date {
-  return new Date(`${date}T00:00:00Z`);
+export function getPicksCloseAt(date: string, time: string): Date {
+  const kickoff = parseKickoff(date, time);
+  return new Date(kickoff.getTime() - getPicksLockHoursBefore() * 60 * 60 * 1000);
 }
 
 export function getPickWindowStatus(
   date: string,
+  time: string,
   now = new Date()
 ): PickWindowStatus {
   const openAt = getPicksOpenAt(date);
-  const closeAt = getPicksCloseAt(date);
+  const closeAt = getPicksCloseAt(date, time);
 
   if (now < openAt) return "upcoming";
   if (now >= closeAt) return "closed";
   return "open";
 }
 
-export function isPicksOpen(date: string, now = new Date()): boolean {
-  return getPickWindowStatus(date, now) === "open";
+export function isPicksOpen(
+  date: string,
+  time: string,
+  now = new Date()
+): boolean {
+  return getPickWindowStatus(date, time, now) === "open";
 }
 
 export function isMatchLocked(
   date: string,
-  _time: string,
+  time: string,
   now = new Date()
 ): boolean {
-  return !isPicksOpen(date, now);
+  return !isPicksOpen(date, time, now);
 }
 
 const KNOCKOUT_ROUNDS = new Set([

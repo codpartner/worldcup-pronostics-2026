@@ -192,7 +192,7 @@ export default function MatchesPage() {
       <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <PageHeader
           title="My picks"
-          description="Picks open 4 days before match day and close at midnight on match day (UTC)."
+          description="Picks open 4 days before match day and lock 1 hour before kickoff."
         />
         <div className="grid grid-cols-3 gap-3">
           <StatCard label="Open" value={stats.open} />
