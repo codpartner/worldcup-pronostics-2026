@@ -1,3 +1,15 @@
+export interface UpdateMatchDetailsInput {
+  round: string;
+  num: number | null;
+  date: string;
+  time: string;
+  team1: string;
+  team2: string;
+  group: string | null;
+  ground: string;
+  apiFixtureId: number | null;
+}
+
 export interface Match {
   id: number;
   round: string;

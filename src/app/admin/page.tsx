@@ -23,8 +23,50 @@ interface Match {
   ground: string;
   score1: number | null;
   score2: number | null;
+  apiFixtureId: number | null;
   locked: boolean;
   emailStats?: MatchEmailStats;
+}
+
+interface ScoreDraft {
+  s1: string;
+  s2: string;
+}
+
+interface DetailDraft {
+  round: string;
+  num: string;
+  date: string;
+  time: string;
+  team1: string;
+  team2: string;
+  group: string;
+  ground: string;
+  apiFixtureId: string;
+}
+
+const fieldClass =
+  "w-full rounded-xl border border-field-border bg-field text-field-foreground px-3 py-2 text-sm text-foreground outline-none ring-emerald-400/40 focus:ring-2";
+
+function toScoreDraft(match: Match): ScoreDraft {
+  return {
+    s1: match.score1?.toString() ?? "",
+    s2: match.score2?.toString() ?? "",
+  };
+}
+
+function toDetailDraft(match: Match): DetailDraft {
+  return {
+    round: match.round,
+    num: match.num?.toString() ?? "",
+    date: match.date,
+    time: match.time,
+    team1: match.team1,
+    team2: match.team2,
+    group: match.group ?? "",
+    ground: match.ground,
+    apiFixtureId: match.apiFixtureId?.toString() ?? "",
+  };
 }
 
 export default function AdminPage() {
@@ -32,14 +74,18 @@ export default function AdminPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<Record<number, { s1: string; s2: string }>>(
+  const [drafts, setDrafts] = useState<Record<number, ScoreDraft>>({});
+  const [detailDrafts, setDetailDrafts] = useState<Record<number, DetailDraft>>(
     {}
   );
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [savingDetailsId, setSavingDetailsId] = useState<number | null>(null);
   const [sendingEmailsId, setSendingEmailsId] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [emailMessage, setEmailMessage] = useState<string | null>(null);
+  const [detailsMessage, setDetailsMessage] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -66,13 +112,12 @@ export default function AdminPage() {
       setMatches(data.matches);
       setDrafts(
         Object.fromEntries(
-          data.matches.map((match: Match) => [
-            match.id,
-            {
-              s1: match.score1?.toString() ?? "",
-              s2: match.score2?.toString() ?? "",
-            },
-          ])
+          data.matches.map((match: Match) => [match.id, toScoreDraft(match)])
+        )
+      );
+      setDetailDrafts(
+        Object.fromEntries(
+          data.matches.map((match: Match) => [match.id, toDetailDraft(match)])
         )
       );
       setLoading(false);
@@ -108,6 +153,11 @@ export default function AdminPage() {
     if (reload.ok) {
       const reloadData = await reload.json();
       setMatches(reloadData.matches);
+      setDetailDrafts(
+        Object.fromEntries(
+          reloadData.matches.map((match: Match) => [match.id, toDetailDraft(match)])
+        )
+      );
     }
 
     setSyncing(false);
@@ -149,6 +199,75 @@ export default function AdminPage() {
       )
     );
     setSavingId(null);
+  }
+
+  async function saveDetails(matchId: number) {
+    const draft = detailDrafts[matchId];
+    if (!draft) return;
+
+    setSavingDetailsId(matchId);
+    setError(null);
+    setDetailsMessage(null);
+
+    const response = await fetch(`/api/admin/matches/${matchId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        round: draft.round,
+        num: draft.num.trim() ? Number(draft.num) : null,
+        date: draft.date,
+        time: draft.time,
+        team1: draft.team1,
+        team2: draft.team2,
+        group: draft.group.trim() || null,
+        ground: draft.ground,
+        apiFixtureId: draft.apiFixtureId.trim()
+          ? Number(draft.apiFixtureId)
+          : null,
+      }),
+    });
+
+    const data = await response.json();
+    setSavingDetailsId(null);
+
+    if (!response.ok) {
+      setError(data.error || "Could not save match details.");
+      return;
+    }
+
+    setMatches((current) =>
+      current.map((match) =>
+        match.id === matchId
+          ? { ...data.match, emailStats: data.emailStats }
+          : match
+      )
+    );
+    setDetailDrafts((current) => ({
+      ...current,
+      [matchId]: toDetailDraft(data.match),
+    }));
+    setEditingId(null);
+    setDetailsMessage("Match details saved.");
+    window.setTimeout(
+      () => setDetailsMessage((msg) => (msg === "Match details saved." ? null : msg)),
+      4000
+    );
+  }
+
+  function startEditing(match: Match) {
+    setEditingId(match.id);
+    setDetailDrafts((current) => ({
+      ...current,
+      [match.id]: toDetailDraft(match),
+    }));
+  }
+
+  function cancelEditing(match: Match) {
+    setEditingId(null);
+    setDetailDrafts((current) => ({
+      ...current,
+      [match.id]: toDetailDraft(match),
+    }));
   }
 
   async function sendWinnerEmails(matchId: number) {
@@ -196,7 +315,7 @@ export default function AdminPage() {
       <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <PageHeader
           title="Admin results"
-          description="Enter scores manually or sync from API-Football. After a result is saved, send winner emails when you're ready."
+          description="Edit match details, enter scores manually, or sync from API-Football. After a result is saved, send winner emails when you're ready."
         />
         <div className="flex flex-col gap-3 sm:items-end">
           <div className="wc-stat-card text-sm text-muted">
@@ -218,18 +337,20 @@ export default function AdminPage() {
       {emailMessage && (
         <p className="mb-4 text-sm text-success">{emailMessage}</p>
       )}
+      {detailsMessage && (
+        <p className="mb-4 text-sm text-success">{detailsMessage}</p>
+      )}
       {error && <p className="mb-4 text-danger">{error}</p>}
 
       <div className="grid gap-4">
         {matches.map((match) => {
           const stats = match.emailStats;
           const hasResult = match.score1 !== null && match.score2 !== null;
+          const editing = editingId === match.id;
+          const detail = detailDrafts[match.id];
 
           return (
-            <article
-              key={match.id}
-              className="wc-match-card p-4"
-            >
+            <article key={match.id} className="wc-match-card p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-xs uppercase tracking-[0.18em] text-emerald-700 dark:text-success/80">
@@ -237,15 +358,209 @@ export default function AdminPage() {
                     {match.num ? ` · #${match.num}` : ""}
                   </p>
                   <p className="text-sm text-muted">
-                    {match.date} · {match.time}
+                    {match.date} · {match.time} · {match.ground}
                   </p>
                 </div>
-                {hasResult && (
-                  <span className="rounded-full bg-surface-secondary px-3 py-1 text-xs text-muted">
-                    Result saved
-                  </span>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  {hasResult && (
+                    <span className="rounded-full bg-surface-secondary px-3 py-1 text-xs text-muted">
+                      Result saved
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      editing ? cancelEditing(match) : startEditing(match)
+                    }
+                    className="wc-btn-secondary px-3 py-1.5 text-xs"
+                  >
+                    {editing ? "Close editor" : "Edit details"}
+                  </button>
+                </div>
               </div>
+
+              {editing && detail && (
+                <div className="mb-4 rounded-2xl border border-default bg-surface/40 p-4">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted">
+                    Match details
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="text-sm font-medium text-foreground/80">
+                      Round
+                      <input
+                        value={detail.round}
+                        onChange={(event) =>
+                          setDetailDrafts((current) => ({
+                            ...current,
+                            [match.id]: {
+                              ...current[match.id],
+                              round: event.target.value,
+                            },
+                          }))
+                        }
+                        className={`${fieldClass} mt-1`}
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-foreground/80">
+                      Match #
+                      <input
+                        type="number"
+                        min={1}
+                        value={detail.num}
+                        onChange={(event) =>
+                          setDetailDrafts((current) => ({
+                            ...current,
+                            [match.id]: {
+                              ...current[match.id],
+                              num: event.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="Optional"
+                        className={`${fieldClass} mt-1`}
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-foreground/80">
+                      Date
+                      <input
+                        type="date"
+                        value={detail.date}
+                        onChange={(event) =>
+                          setDetailDrafts((current) => ({
+                            ...current,
+                            [match.id]: {
+                              ...current[match.id],
+                              date: event.target.value,
+                            },
+                          }))
+                        }
+                        className={`${fieldClass} mt-1`}
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-foreground/80">
+                      Time
+                      <input
+                        value={detail.time}
+                        onChange={(event) =>
+                          setDetailDrafts((current) => ({
+                            ...current,
+                            [match.id]: {
+                              ...current[match.id],
+                              time: event.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="13:00 UTC-6"
+                        className={`${fieldClass} mt-1`}
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-foreground/80">
+                      Team 1
+                      <input
+                        value={detail.team1}
+                        onChange={(event) =>
+                          setDetailDrafts((current) => ({
+                            ...current,
+                            [match.id]: {
+                              ...current[match.id],
+                              team1: event.target.value,
+                            },
+                          }))
+                        }
+                        className={`${fieldClass} mt-1`}
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-foreground/80">
+                      Team 2
+                      <input
+                        value={detail.team2}
+                        onChange={(event) =>
+                          setDetailDrafts((current) => ({
+                            ...current,
+                            [match.id]: {
+                              ...current[match.id],
+                              team2: event.target.value,
+                            },
+                          }))
+                        }
+                        className={`${fieldClass} mt-1`}
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-foreground/80">
+                      Group
+                      <input
+                        value={detail.group}
+                        onChange={(event) =>
+                          setDetailDrafts((current) => ({
+                            ...current,
+                            [match.id]: {
+                              ...current[match.id],
+                              group: event.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="Group A (optional)"
+                        className={`${fieldClass} mt-1`}
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-foreground/80">
+                      Ground
+                      <input
+                        value={detail.ground}
+                        onChange={(event) =>
+                          setDetailDrafts((current) => ({
+                            ...current,
+                            [match.id]: {
+                              ...current[match.id],
+                              ground: event.target.value,
+                            },
+                          }))
+                        }
+                        className={`${fieldClass} mt-1`}
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-foreground/80 sm:col-span-2">
+                      API-Football fixture ID
+                      <input
+                        type="number"
+                        min={1}
+                        value={detail.apiFixtureId}
+                        onChange={(event) =>
+                          setDetailDrafts((current) => ({
+                            ...current,
+                            [match.id]: {
+                              ...current[match.id],
+                              apiFixtureId: event.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="Optional"
+                        className={`${fieldClass} mt-1`}
+                      />
+                    </label>
+                  </div>
+                  <div className="mt-4 flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => cancelEditing(match)}
+                      disabled={savingDetailsId === match.id}
+                      className="wc-btn-secondary px-4 py-2 text-sm disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => saveDetails(match.id)}
+                      disabled={savingDetailsId === match.id}
+                      className="wc-btn px-4 py-2 text-sm disabled:opacity-50"
+                    >
+                      {savingDetailsId === match.id
+                        ? "Saving..."
+                        : "Save details"}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
                 <TeamDisplay

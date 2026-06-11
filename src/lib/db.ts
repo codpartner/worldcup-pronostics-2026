@@ -49,6 +49,7 @@ import type {
   PredictionHistoryEntry,
   ScoredPrediction,
   TeamLineup,
+  UpdateMatchDetailsInput,
   User,
 } from "./types";
 
@@ -626,6 +627,54 @@ export function getMatchById(id: number): Match | null {
     | undefined;
 
   return row ? mapMatch(row) : null;
+}
+
+export function updateMatchDetails(
+  matchId: number,
+  input: UpdateMatchDetailsInput
+): Match {
+  const round = input.round.trim();
+  const date = input.date.trim();
+  const time = input.time.trim();
+  const team1 = input.team1.trim();
+  const team2 = input.team2.trim();
+  const ground = input.ground.trim();
+  const group = input.group?.trim() || null;
+
+  if (!round) throw new Error("Round is required.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error("Date must be YYYY-MM-DD.");
+  }
+  if (!time) throw new Error("Time is required.");
+  if (!team1 || !team2) throw new Error("Both teams are required.");
+  if (!ground) throw new Error("Ground is required.");
+
+  const existing = getMatchById(matchId);
+  if (!existing) throw new Error("Match not found.");
+
+  getDb()
+    .prepare(
+      `UPDATE matches
+       SET round = ?, num = ?, date = ?, time = ?,
+           team1 = ?, team2 = ?, group_name = ?, ground = ?,
+           api_fixture_id = ?, sync_after_utc = ?
+       WHERE id = ?`
+    )
+    .run(
+      round,
+      input.num,
+      date,
+      time,
+      team1,
+      team2,
+      group,
+      ground,
+      input.apiFixtureId,
+      getResultSyncAfter(date, time).toISOString(),
+      matchId
+    );
+
+  return getMatchById(matchId)!;
 }
 
 export function getMatchesWithoutResults(): Match[] {
